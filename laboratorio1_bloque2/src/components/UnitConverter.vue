@@ -40,8 +40,8 @@ const fromUnit       = ref('km')        // 2
 const toUnit         = ref('m')         // 3
 const inputValue     = ref('')          // 4
 const result         = ref(null)        // 5
-const errorMsg       = ref('')          // 6 — NUEVA: mensaje de error
-const historial      = ref([])          // 7 — NUEVA: historial de conversiones
+const errorMsg       = ref('')          // 6 
+const historial      = ref([])          // 7 
 
 const currentUnits = computed(() => categories[activeCategory.value].units)
 
