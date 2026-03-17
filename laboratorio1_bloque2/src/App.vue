@@ -1,11 +1,37 @@
-<script setup></script>
+<script setup>
+import UnitConverter from './components/UnitConverter.vue'
+</script>
+
 
 <template>
-  <h1>You did it!</h1>
-  <p>
-    Visit <a href="https://vuejs.org/" target="_blank" rel="noopener">vuejs.org</a> to read the
-    documentation
-  </p>
+    <div class="wrapper">
+    <div class="row">
+      <Calculator />
+      <UnitConverter />
+    </div>
+    <div class="row">
+      <ClientForm />
+    </div>
+  </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  padding: 3rem 1rem;
+  background: #0b0b0e;
+}
+.row {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+}
+</style>
+
+
