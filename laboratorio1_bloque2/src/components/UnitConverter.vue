@@ -34,67 +34,80 @@ const categories = {
   }
 }
 
-// ── Estado ────────────────────────────────────────────────────────────
-const activeCategory = ref('longitud')
-const fromUnit       = ref('km')
-const toUnit         = ref('m')
-const inputValue     = ref('')
-const result         = ref(null)
+// ── Variables reactivas ───────────────────────────────────────────────
+const activeCategory = ref('longitud')  // 1
+const fromUnit       = ref('km')        // 2
+const toUnit         = ref('m')         // 3
+const inputValue     = ref('')          // 4
+const result         = ref(null)        // 5
+const errorMsg       = ref('')          // 6 — NUEVA: mensaje de error
+const historial      = ref([])          // 7 — NUEVA: historial de conversiones
 
 const currentUnits = computed(() => categories[activeCategory.value].units)
 
-// Al cambiar categoría, resetear unidades y resultado
 watch(activeCategory, () => {
   const keys = Object.keys(currentUnits.value)
-  fromUnit.value = keys[0]
-  toUnit.value   = keys[1]
+  fromUnit.value   = keys[0]
+  toUnit.value     = keys[1]
   inputValue.value = ''
-  result.value = null
+  result.value     = null
+  errorMsg.value   = ''
 })
 
 // ── Conversión ────────────────────────────────────────────────────────
 function convert() {
+  errorMsg.value = ''
   const val = parseFloat(inputValue.value)
-  if (isNaN(val)) { result.value = null; return }
+
+  if (inputValue.value === '' || isNaN(val)) {
+    errorMsg.value = 'Por favor ingresa un valor numérico válido.'
+    result.value = null
+    return
+  }
 
   if (activeCategory.value === 'temperatura') {
     result.value = convertTemp(val, fromUnit.value, toUnit.value)
   } else {
-    // Convertir a unidad base (metros o kg) y luego a destino
     const base = val * currentUnits.value[fromUnit.value].factor
     result.value = base / currentUnits.value[toUnit.value].factor
   }
+
+  // Guardar en historial
+  const fromLabel = currentUnits.value[fromUnit.value].label.split(' ')[0]
+  const toLabel   = currentUnits.value[toUnit.value].label.split(' ')[0]
+  historial.value.unshift({
+    from: `${val} ${fromLabel}`,
+    to:   `${formatResult(result.value)} ${toLabel}`,
+    cat:  categories[activeCategory.value].label
+  })
+  if (historial.value.length > 6) historial.value.pop()
 }
 
 function convertTemp(val, from, to) {
-  // Primero a Celsius
   let celsius
   if (from === 'celsius')    celsius = val
   if (from === 'fahrenheit') celsius = (val - 32) * 5 / 9
   if (from === 'kelvin')     celsius = val - 273.15
-
-  // Luego a destino
   if (to === 'celsius')    return celsius
   if (to === 'fahrenheit') return celsius * 9 / 5 + 32
   if (to === 'kelvin')     return celsius + 273.15
 }
 
 function swap() {
-  const tmp    = fromUnit.value
+  const tmp      = fromUnit.value
   fromUnit.value = toUnit.value
   toUnit.value   = tmp
-  if (result.value !== null) {
-    inputValue.value = formatResult(result.value)
-    convert()
-  }
+  result.value   = null
+}
+
+function limpiarHistorial() {
+  historial.value = []
 }
 
 function formatResult(n) {
   if (n === null) return ''
-
   if (n === 0) return '0'
-
-  return parseFloat(n.toFixed(2)).toString()
+  return parseFloat(n.toFixed(6)).toString()
 }
 
 const displayResult = computed(() =>
@@ -110,46 +123,69 @@ const resultUnit = computed(() =>
   <div class="converter">
     <h2 class="title">Conversor</h2>
 
-    <!-- Tabs de categoría -->
+    <!--  v-for: itera categorías para generar tabs -->
+    <!--  v-bind: enlaza la clase activa dinámicamente -->
     <div class="tabs">
       <button
         v-for="(cat, key) in categories"
         :key="key"
-        :class="{ active: activeCategory === key }"
+        v-bind:class="{ active: activeCategory === key }"
         @click="activeCategory = key"
       >
         {{ cat.label }}
       </button>
     </div>
 
-    <!-- Formulario -->
+    <!-- v-if: solo muestra el error si existe errorMsg -->
+    <div v-if="errorMsg" class="error-box">
+       {{ errorMsg }}
+    </div>
+
     <div class="form">
-      <!-- Valor de entrada -->
+      <!--  v-model: enlaza el valor del input -->
+      <!--  v-bind: deshabilita el botón si el input está vacío -->
       <input
         v-model="inputValue"
         type="number"
         placeholder="Ingresa un valor"
-        @input="convert"
       />
 
-      <!-- Selects + swap -->
       <div class="selects">
-        <select v-model="fromUnit" @change="convert">
-          <option v-for="(unit, key) in currentUnits" :key="key" :value="key">
+        <!--  v-model: enlaza la unidad origen -->
+        <!--  v-for: genera las opciones del select -->
+        <select v-model="fromUnit">
+          <option
+            v-for="(unit, key) in currentUnits"
+            :key="key"
+            v-bind:value="key"
+          >
             {{ unit.label }}
           </option>
         </select>
 
-        <button class="swap-btn" @click="swap" title="Intercambiar">
-          ⇄
-        </button>
+        <button class="swap-btn" @click="swap" title="Intercambiar">⇄</button>
 
-        <select v-model="toUnit" @change="convert">
-          <option v-for="(unit, key) in currentUnits" :key="key" :value="key">
+        <!--  v-model: enlaza la unidad destino -->
+        <!-- v-for + v-bind:value -->
+        <select v-model="toUnit">
+          <option
+            v-for="(unit, key) in currentUnits"
+            :key="key"
+            v-bind:value="key"
+          >
             {{ unit.label }}
           </option>
         </select>
       </div>
+
+      <!--  v-bind:disabled desactiva el botón si no hay valor -->
+      <button
+        class="convert-btn"
+        v-bind:disabled="inputValue === ''"
+        @click="convert"
+      >
+        Convertir
+      </button>
     </div>
 
     <!-- Resultado -->
@@ -157,6 +193,26 @@ const resultUnit = computed(() =>
       <span class="result-value">{{ displayResult }}</span>
       <span class="result-unit">{{ result !== null ? resultUnit : '' }}</span>
     </div>
+
+    <!-- Historial -->
+    <div class="hist-header">
+      <span class="hist-label">HISTORIAL</span>
+      <button class="clear-btn" @click="limpiarHistorial">Limpiar</button>
+    </div>
+
+    <!--  v-if / v-else: muestra lista o mensaje vacío -->
+    <div v-if="historial.length > 0" class="hist-list">
+      <!--  v-for: itera las entradas del historial -->
+      <div
+        v-for="(entry, index) in historial"
+        :key="index"
+        class="hist-item"
+      >
+        <span class="hist-cat">{{ entry.cat }}</span>
+        <span class="hist-conv">{{ entry.from }} → {{ entry.to }}</span>
+      </div>
+    </div>
+    <div v-else class="hist-empty">Sin conversiones aún</div>
 
   </div>
 </template>
@@ -173,10 +229,9 @@ const resultUnit = computed(() =>
   font-family: 'DM Sans', sans-serif;
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
+  gap: 1rem;
 }
 
-/* ── Título ─── */
 .title {
   font-family: 'Syne', sans-serif;
   font-size: 1.6rem;
@@ -184,6 +239,16 @@ const resultUnit = computed(() =>
   color: #f0f0f0;
   letter-spacing: -0.5px;
   text-align: center;
+}
+
+/* ── Error ─── */
+.error-box {
+  background: #3a1515;
+  border: 1.5px solid #c0392b;
+  border-radius: 12px;
+  padding: .5rem .8rem;
+  font-size: .82rem;
+  color: #ff6b6b;
 }
 
 /* ── Tabs ─── */
@@ -224,18 +289,31 @@ input[type="number"] {
   outline: none;
   transition: border-color .2s;
   -moz-appearance: textfield;
+  box-sizing: border-box;
 }
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
 input:focus { border-color: #c8f058; }
 input::placeholder { color: #3a3a46; font-size: 1rem; font-weight: 300; }
 
-/* ── Selects row ─── */
-.selects {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
+/* ── Botón Convertir ─── */
+.convert-btn {
+  background: #c8f058;
+  border: none;
+  border-radius: 12px;
+  padding: .7rem;
+  color: #111;
+  font-family: 'DM Sans', sans-serif;
+  font-size: .9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity .2s;
 }
+.convert-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.convert-btn:not(:disabled):hover { opacity: 0.85; }
+
+/* ── Selects row ─── */
+.selects { display: flex; align-items: center; gap: .5rem; }
 
 select {
   flex: 1;
@@ -264,8 +342,7 @@ select option { background: #1f1f26; }
   border: 1.5px solid #2a2a33;
   color: #c8f058;
   border-radius: 10px;
-  width: 36px;
-  height: 36px;
+  width: 36px; height: 36px;
   font-size: 1.1rem;
   cursor: pointer;
   transition: background .15s, transform .2s;
@@ -295,9 +372,33 @@ select option { background: #1f1f26; }
   word-break: break-all;
   text-align: right;
 }
-.result-unit {
-  font-size: .82rem;
-  color: #7a7a8a;
-  white-space: nowrap;
+.result-unit { font-size: .82rem; color: #7a7a8a; white-space: nowrap; }
+
+/* ── Historial ─── */
+.hist-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
+.hist-label { font-size: .78rem; color: #7a7a8a; font-weight: 500; letter-spacing: .05em; }
+.clear-btn {
+  background: transparent; border: none; color: #7a7a8a;
+  font-size: .75rem; cursor: pointer;
+}
+.clear-btn:hover { color: #f0f0f0; }
+
+.hist-list { display: flex; flex-direction: column; gap: .4rem; max-height: 140px; overflow-y: auto; }
+
+.hist-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #1f1f26;
+  border-radius: 8px;
+  padding: .35rem .7rem;
+}
+.hist-cat  { font-size: .72rem; color: #7a7a8a; }
+.hist-conv { font-size: .78rem; color: #f0f0f0; }
+
+.hist-empty { text-align: center; font-size: .78rem; color: #3a3a46; padding: .5rem 0; }
 </style>
